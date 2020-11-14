@@ -1,25 +1,23 @@
 package com.example.textfinder.model;
 
-import java.util.Optional;
+import javax.validation.constraints.Min;
+import javax.validation.constraints.NotNull;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Getter
+@NoArgsConstructor
 public class SearchRequest {
 
-  private final String url;
-  private final Integer maxThreadsNumber;
-  private final String text;
-  private final Integer maxUrlScanned;
+  @NotNull(message = "Url cannot be null")
+  private String url;
 
-  public SearchRequest(
-      final String url,
-      final Integer maxThreadsNumber,
-      final String text,
-      final Integer maxUrlScanned) {
-    //todo validation
-    this.url = Optional.ofNullable(url).orElseThrow(RuntimeException::new);
-    this.maxThreadsNumber = Optional.ofNullable(maxThreadsNumber).orElse(1);
-    this.text = Optional.ofNullable(text).orElseThrow(RuntimeException::new);
-    this.maxUrlScanned = Optional.ofNullable(maxUrlScanned).orElse(1);
-  }
+  @NotNull(message = "Searched text cannot be null")
+  private String text;
+
+  @Min(value = 1, message = "Threads cannot be less than 1")
+  private Integer maxThreadsNumber;
+
+  @Min(value = 1, message = "Max url scanned cannot be less than 1")
+  private Integer maxUrlScanned;
 }
