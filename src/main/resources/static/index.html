@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Text finder</title>
+  <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.0/sockjs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+  <script src="app.js"></script>
+</head>
+<body onload="connect()">
+<div id="content">
+  <form class="form">
+    <div class="form-input">
+      <label for="url">Url</label>
+      <input type="text" id="url" class="text-input" placeholder="Your url here...">
+      <label for="text">Text</label>
+      <input type="text" id="text" class="text-input" placeholder="Your text here...">
+      <label for="max_threads_number">Max threads</label>
+      <input type="number" id="max_threads_number" class="number-input" min="1" value="1">
+      <label for="max_url_scanned">Max scanned url</label>
+      <input type="number" id="max_url_scanned" class="number-input" min="1" value="1">
+    </div>
+    <button id="send" type="submit">Send</button>
+    <button id="clear" type="reset">Clear</button>
+  </form>
+</div>
+<div class="row">
+  <table id="table">
+    <thead>
+    <tr>
+      <th>Scanned URLs</th>
+    </tr>
+    </thead>
+    <tbody id="urls">
+    </tbody>
+  </table>
+</div>
+</body>
+</html>

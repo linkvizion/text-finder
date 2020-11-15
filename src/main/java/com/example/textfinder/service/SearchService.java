@@ -1,7 +1,7 @@
 package com.example.textfinder.service;
 
-import com.example.textfinder.model.ParsedPage;
-import com.example.textfinder.model.SearchRequest;
+import com.example.textfinder.model.ScannedUrl;
+import com.example.textfinder.model.SearchParams;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
@@ -9,31 +9,36 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class SearchService {
+
+  private final SimpMessagingTemplate simpMessagingTemplate;
+  private static final String MESSAGE_DESTINATION = "/topic/scanned";
 
   // todo multithreading
 
-  public List<ParsedPage> searchText(final SearchRequest searchRequest) {
+  public void searchText(final SearchParams searchParams) {
 
-    final Queue<String> queue = new LinkedList<>(Collections.singleton(searchRequest.getUrl()));
-    final List<ParsedPage> list = new ArrayList<>();
+    final Queue<String> queue = new LinkedList<>(Collections.singleton(searchParams.getUrl()));
+    final List<ScannedUrl> list = new ArrayList<>();
 
-    while (list.size() <= searchRequest.getMaxUrlScanned()) {
+    while (list.size() < searchParams.getMaxUrlScanned()) {
       if (!queue.isEmpty()) {
-        final ParsedPage parsedPage = parseUrl(queue.poll(), searchRequest.getText());
-        list.add(parsedPage);
-        queue.addAll(Optional.ofNullable(parsedPage.getUrls()).orElseGet(ArrayList::new));
+        final ScannedUrl scannedUrl = parseUrl(queue.poll(), searchParams.getText());
+        list.add(scannedUrl);
+        queue.addAll(Optional.ofNullable(scannedUrl.getUrls()).orElseGet(ArrayList::new));
       }
     }
-    return list;
   }
 
-  private ParsedPage parseUrl(String url, String text) {
+  public ScannedUrl parseUrl(final String url, final String text) {
     try {
       final Document doc = Jsoup.connect(url).get();
 
@@ -44,9 +49,14 @@ public class SearchService {
 
       final boolean exists = doc.body().text().contains(text);
 
-      return new ParsedPage(url, urls, exists, null); //todo factory?
+      final ScannedUrl scannedUrl = new ScannedUrl(url, urls, exists, null);
+      //todo separate massage for new url, separate for scanned
+      simpMessagingTemplate.convertAndSend(MESSAGE_DESTINATION, scannedUrl);
+      return scannedUrl; //todo factory?
     } catch (Exception e) {
-      return new ParsedPage(url, null, null, e.getMessage());
+      final ScannedUrl scannedUrl = new ScannedUrl(url, null, null, e.getMessage());
+      simpMessagingTemplate.convertAndSend(MESSAGE_DESTINATION, scannedUrl);
+      return scannedUrl;
     }
   }
 }

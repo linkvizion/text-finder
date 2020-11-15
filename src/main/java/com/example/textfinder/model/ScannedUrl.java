@@ -6,7 +6,7 @@ import lombok.Getter;
 
 @AllArgsConstructor
 @Getter
-public class ParsedPage {
+public class ScannedUrl {
 
   private final String url;
   private final List<String> urls;

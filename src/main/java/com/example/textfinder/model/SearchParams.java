@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @NoArgsConstructor
-public class SearchRequest {
+public class SearchParams {
 
   @NotNull(message = "Url cannot be null")
   private String url;
