@@ -12,26 +12,36 @@
   <form class="form">
     <div class="form-input">
       <label for="url">Url</label>
-      <input type="text" id="url" class="text-input" placeholder="Your url here...">
+      <input type="text" id="url" class="text-input" placeholder="Your url here..." required>
       <label for="text">Text</label>
-      <input type="text" id="text" class="text-input" placeholder="Your text here...">
+      <input type="text" id="text" class="text-input" placeholder="Your text here..." required>
       <label for="max_threads_number">Max threads</label>
       <input type="number" id="max_threads_number" class="number-input" min="1" value="1">
       <label for="max_url_scanned">Max scanned url</label>
       <input type="number" id="max_url_scanned" class="number-input" min="1" value="1">
     </div>
+    <br/>
     <button id="send" type="submit">Send</button>
     <button id="clear" type="reset">Clear</button>
   </form>
 </div>
 <div class="row">
-  <table id="table">
+  <table id="scanned_urls_table">
     <thead>
     <tr>
       <th>Scanned URLs</th>
     </tr>
     </thead>
-    <tbody id="urls">
+    <tbody id="scanned_urls">
+    </tbody>
+  </table>
+  <table id="urls_to_scan_table">
+    <thead>
+    <tr>
+      <th>URLs to scan</th>
+    </tr>
+    </thead>
+    <tbody id="urls_to_scan">
     </tbody>
   </table>
 </div>

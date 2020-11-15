@@ -1,15 +1,22 @@
-let stompClient = null;
+let stompScannedClient = null;
+let stompToScanClient = null;
 
 function connect() {
-  stompClient = Stomp.over(new SockJS('/gs-guide-websocket'));
-  stompClient.connect({}, () =>
-    stompClient.subscribe('/topic/scanned', scannedUrl =>
-      showScannedUrls(JSON.parse(scannedUrl.body)))
+  stompScannedClient = Stomp.over(new SockJS('/gs-guide-websocket'));
+  stompToScanClient = Stomp.over(new SockJS('/gs-guide-websocket'));
+  stompScannedClient.connect({}, () =>
+    stompScannedClient.subscribe('/topic/scanned', scannedUrl => {
+      showScannedUrls(JSON.parse(scannedUrl.body));
+      deleteScannedUrlFromToScan();
+    })
+  );
+  stompToScanClient.connect({}, () =>
+    stompToScanClient.subscribe('/topic/toScan', url => showUrlsToScan(url.body))
   );
 }
 
 function sendSearchParams() {
-  stompClient.send("/app/find", {},
+  stompScannedClient.send("/app/find", {},
     JSON.stringify({
       'url': $("#url").val(),
       'text': $("#text").val(),
@@ -18,22 +25,37 @@ function sendSearchParams() {
     }));
 }
 
-function showScannedUrls(message) {
+function showScannedUrls(scannedUrl) {
   //todo numerating
-  $("#urls").append(
-    "<tr><td>" + message.url + "</td>"
-    + "<td>" + message.exist + "</td></tr>"
+  $("#scanned_urls").append(
+    "<tr><td>" + scannedUrl.url + "</td>"
+    + "<td>" + showMassage(scannedUrl) + "</td></tr>"
   );
 }
 
-function clearShowedUrls() {
-  $("#urls").empty();
+function deleteScannedUrlFromToScan() {
+  $("#urls_to_scan").children()[0].remove()
+}
+
+function showUrlsToScan(urlToScan) {
+  $("#urls_to_scan").append("<tr><td>" + urlToScan + "<td></tr>td>");
+}
+
+function showMassage(scannedUrl) {
+  return scannedUrl.exist != null ? scannedUrl.exist : scannedUrl.error;
+}
+
+function clearTables() {
+  $("#scanned_urls").empty();
+  $("#urls_to_scan").empty();
 }
 
 $(() => {
   $("form").on('submit', e => e.preventDefault());
-  $("#send").click(() =>  {
-    clearShowedUrls();
-    sendSearchParams();
+  $("#send").click(() => {
+    if ($("#url").val() && $("#text").val()) {
+      clearTables();
+      sendSearchParams();
+    }
   });
 });
