@@ -1,18 +1,24 @@
 package com.example.textfinder.service;
 
+import static com.example.textfinder.Constants.HREF_CSS_SELECTOR;
+import static com.example.textfinder.Constants.SCANNED_URL_TOPIC;
+import static com.example.textfinder.Constants.TIME_OUT_SECONDS;
+import static com.example.textfinder.Constants.URL_TO_SCAN_TOPIC;
+
 import com.example.textfinder.model.ScannedUrl;
 import com.example.textfinder.model.SearchParams;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Optional;
 import java.util.Queue;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
@@ -21,50 +27,80 @@ import org.springframework.stereotype.Service;
 public class SearchService {
 
   private final SimpMessagingTemplate simpMessagingTemplate;
-  private static final String SCANNED_URL_TOPIC = "/topic/scanned";
-  private static final String URL_TO_SCAN_TOPIC = "/topic/toScan";
-  final List<ScannedUrl> list = new ArrayList<>();
-//   todo multithreading
+  private AtomicInteger SCANNED_URL_COUNT;
+  private Queue<String> queue;
 
   public void searchText(final SearchParams searchParams) {
-    final Queue<String> queue = new LinkedList<>(Collections.singleton(searchParams.getUrl()));
+    SCANNED_URL_COUNT = new AtomicInteger(0);
+    queue = new LinkedBlockingQueue<>(searchParams.getMaxUrlScanned());
+    queue.add(searchParams.getUrl());
 
-    while (list.size() < searchParams.getMaxUrlScanned()) {
-      if (!queue.isEmpty()) {
-        final ScannedUrl scannedUrl = parseUrl(queue.poll(), searchParams.getText());
-        list.add(scannedUrl);
-        queue.addAll(
-            Optional.ofNullable(scannedUrl.getUrls()) //todo refactor
-                .map(s -> s.stream()
-                    .filter(url -> !queue.contains(url) && list.stream()
-                        .noneMatch(a -> a.getUrl().equals(url)))
-                    .limit(searchParams.getMaxUrlScanned() - list.size())
-                    .peek(url -> simpMessagingTemplate.convertAndSend(URL_TO_SCAN_TOPIC, url))
-                    .collect(Collectors.toList()))
-                .orElseGet(ArrayList::new));
+    final ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) Executors
+        .newFixedThreadPool(searchParams.getMaxThreadsNumber());
+
+    while (SCANNED_URL_COUNT.get() < searchParams.getMaxUrlScanned()) {
+      synchronized (queue) {
+        if(!queue.isEmpty()) {
+          String url = queue.poll();
+          threadPoolExecutor
+              .execute(() -> {
+                synchronized (queue) {
+                  ScannedUrl scannedUrl = parseUrl(url, searchParams.getText(),
+                      searchParams);
+                  queue.addAll(scannedUrl.getUrls());
+                }
+              });
+          SCANNED_URL_COUNT.incrementAndGet();
+        }
       }
     }
+
+    threadPoolExecutor.shutdown();
   }
 
-  private ScannedUrl parseUrl(final String url, final String text) {
+  private ScannedUrl parseUrl(final String url, final String text,
+      final SearchParams searchParams) {
     try {
-      final Document doc = Jsoup.connect(url).timeout(2 * 1000) .get();
+      final Document doc = Jsoup.connect(url).timeout(TIME_OUT_SECONDS * 1000).get();
+      System.out.println(Thread.currentThread().getName());
 
-      final List<String> urls = doc.select("a[href]").stream()
-          .map(s -> s.attr("href")) // todo url filter\fixer ?
-          .filter(s -> s.startsWith("https:"))
-          .collect(Collectors.toList());
+      final List<String> urls = new ArrayList<>();
+      synchronized (queue) {
+        urls.addAll(doc.select(HREF_CSS_SELECTOR).stream()
+            .map(this::getHrefValue)
+            .filter(this::isNewUrl)
+            .limit(Math.max(searchParams.getMaxUrlScanned() - (queue.size() + SCANNED_URL_COUNT.get()), 0))
+            .peek(this::pushToScan)
+            .collect(Collectors.toList()));
+      }
 
       final boolean exists = doc.body().text().contains(text);
 
-      final ScannedUrl scannedUrl = new ScannedUrl(url, urls, exists, null);
-      //todo separate massage for new url, separate for scanned
-      simpMessagingTemplate.convertAndSend(SCANNED_URL_TOPIC, scannedUrl);
-      return scannedUrl; //todo factory?
-    } catch (Exception e) {
-      final ScannedUrl scannedUrl = new ScannedUrl(url, null, null, e.getMessage());
-      simpMessagingTemplate.convertAndSend(SCANNED_URL_TOPIC, scannedUrl);
+      final ScannedUrl scannedUrl = new ScannedUrl(url, urls, exists);
+      pushToScanned(scannedUrl);
       return scannedUrl;
+    } catch (Exception e) {
+      final ScannedUrl scannedUrl = new ScannedUrl(url, e.getMessage());
+      pushToScanned(scannedUrl);
+      return scannedUrl;
+    }
+  }
+
+  private void pushToScan(final String url) {
+    simpMessagingTemplate.convertAndSend(URL_TO_SCAN_TOPIC, url);
+  }
+
+  private void pushToScanned(final ScannedUrl scannedUrl) {
+    simpMessagingTemplate.convertAndSend(SCANNED_URL_TOPIC, scannedUrl);
+  }
+
+  private String getHrefValue(final Element element) {
+    return element.attr("href"); // todo url filter\fixer ?
+  }
+
+  private boolean isNewUrl(final String href) {
+    synchronized (queue) {
+      return href.startsWith("https://") && !queue.contains(href);
     }
   }
 }
