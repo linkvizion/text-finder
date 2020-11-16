@@ -1,5 +1,6 @@
 let stompScannedClient = null;
 let stompToScanClient = null;
+let scannedRowCount = 1;
 
 function connect() {
   stompScannedClient = Stomp.over(new SockJS('/gs-guide-websocket'));
@@ -26,9 +27,8 @@ function sendSearchParams() {
 }
 
 function showScannedUrls(scannedUrl) {
-  //todo numerating
   $("#scanned_urls").append(
-    "<tr><td>" + scannedUrl.url + "</td>"
+    "<tr><td>"+ (scannedRowCount++) +"</td><td>" + scannedUrl.url + "</td>"
     + "<td>" + showMassage(scannedUrl) + "</td></tr>"
   );
 }
@@ -46,6 +46,7 @@ function showMassage(scannedUrl) {
 }
 
 function clearTables() {
+  scannedRowCount = 1;
   $("#scanned_urls").empty();
   $("#urls_to_scan").empty();
 }
