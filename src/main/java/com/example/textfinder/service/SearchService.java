@@ -7,13 +7,11 @@ import static com.example.textfinder.Constants.URL_TO_SCAN_TOPIC;
 
 import com.example.textfinder.model.ScannedUrl;
 import com.example.textfinder.model.SearchParams;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.jsoup.Jsoup;
@@ -25,32 +23,34 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class SearchService {
+  //todo tests
 
   private final SimpMessagingTemplate simpMessagingTemplate;
-  private AtomicInteger SCANNED_URL_COUNT;
+  private int SCANNED_URL_COUNT;
   private Queue<String> queue;
+  private final Object MONITOR = new Object();
 
   public void searchText(final SearchParams searchParams) {
-    SCANNED_URL_COUNT = new AtomicInteger(0);
+    SCANNED_URL_COUNT = 0;
     queue = new LinkedBlockingQueue<>(searchParams.getMaxUrlScanned());
     queue.add(searchParams.getUrl());
 
     final ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) Executors
         .newFixedThreadPool(searchParams.getMaxThreadsNumber());
 
-    while (SCANNED_URL_COUNT.get() < searchParams.getMaxUrlScanned()) {
-      synchronized (queue) {
-        if(!queue.isEmpty()) {
+    while (SCANNED_URL_COUNT < searchParams.getMaxUrlScanned()) {
+      synchronized (MONITOR) {
+        if (!queue.isEmpty()) {
           String url = queue.poll();
           threadPoolExecutor
               .execute(() -> {
-                synchronized (queue) {
+                synchronized (MONITOR) {
                   ScannedUrl scannedUrl = parseUrl(url, searchParams.getText(),
                       searchParams);
                   queue.addAll(scannedUrl.getUrls());
                 }
               });
-          SCANNED_URL_COUNT.incrementAndGet();
+          SCANNED_URL_COUNT++;
         }
       }
     }
@@ -62,16 +62,15 @@ public class SearchService {
       final SearchParams searchParams) {
     try {
       final Document doc = Jsoup.connect(url).timeout(TIME_OUT_SECONDS * 1000).get();
-      System.out.println(Thread.currentThread().getName());
 
-      final List<String> urls = new ArrayList<>();
-      synchronized (queue) {
-        urls.addAll(doc.select(HREF_CSS_SELECTOR).stream()
+      final List<String> urls;
+      synchronized (MONITOR) {
+        urls = doc.select(HREF_CSS_SELECTOR).stream()
             .map(this::getHrefValue)
             .filter(this::isNewUrl)
-            .limit(Math.max(searchParams.getMaxUrlScanned() - (queue.size() + SCANNED_URL_COUNT.get()), 0))
-            .peek(this::pushToScan)
-            .collect(Collectors.toList()));
+            .limit(
+                Math.max(searchParams.getMaxUrlScanned() - (queue.size() + SCANNED_URL_COUNT), 0))
+            .peek(this::pushToScan).collect(Collectors.toList());
       }
 
       final boolean exists = doc.body().text().contains(text);
@@ -99,7 +98,7 @@ public class SearchService {
   }
 
   private boolean isNewUrl(final String href) {
-    synchronized (queue) {
+    synchronized (MONITOR) {
       return href.startsWith("https://") && !queue.contains(href);
     }
   }

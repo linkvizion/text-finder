@@ -14,7 +14,7 @@ public class SearchController {
   private final SearchService searchService;
 
   @MessageMapping("/find")
-  public void find(@Valid SearchParams searchParams) {
+  public void find(@Valid final SearchParams searchParams) {
     searchService.searchText(searchParams);
   }
 }

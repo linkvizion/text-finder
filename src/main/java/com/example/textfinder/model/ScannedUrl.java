@@ -10,11 +10,11 @@ import lombok.Getter;
 @Getter
 public class ScannedUrl {
 
-  public ScannedUrl(String url, String error) {
+  public ScannedUrl(final String url, final String error) {
     this(url, Collections.emptyList(), null, error);
   }
 
-  public ScannedUrl(String url, List<String> urls, Boolean exist) {
+  public ScannedUrl(final String url, final List<String> urls, final Boolean exist) {
     this(url, urls, exist, null);
   }
 
