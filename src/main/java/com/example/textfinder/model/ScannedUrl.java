@@ -4,10 +4,12 @@ import java.util.Collections;
 import java.util.List;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Getter
+@EqualsAndHashCode
 public class ScannedUrl {
 
   public ScannedUrl(final String url, final String error) {

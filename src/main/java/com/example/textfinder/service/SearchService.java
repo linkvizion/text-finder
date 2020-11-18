@@ -7,6 +7,7 @@ import static com.example.textfinder.Constants.URL_TO_SCAN_TOPIC;
 
 import com.example.textfinder.model.ScannedUrl;
 import com.example.textfinder.model.SearchParams;
+import java.io.IOException;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.Executors;
@@ -23,16 +24,14 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class SearchService {
-  //todo tests
 
   private final SimpMessagingTemplate simpMessagingTemplate;
   private int SCANNED_URL_COUNT;
-  private Queue<String> queue;
+  private final Queue<String> queue = new LinkedBlockingQueue<>();
   private final Object MONITOR = new Object();
 
   public void searchText(final SearchParams searchParams) {
     SCANNED_URL_COUNT = 0;
-    queue = new LinkedBlockingQueue<>(searchParams.getMaxUrlScanned());
     queue.add(searchParams.getUrl());
 
     final ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) Executors
@@ -45,8 +44,7 @@ public class SearchService {
           threadPoolExecutor
               .execute(() -> {
                 synchronized (MONITOR) {
-                  ScannedUrl scannedUrl = parseUrl(url, searchParams.getText(),
-                      searchParams);
+                  ScannedUrl scannedUrl = parseUrl(url, searchParams);
                   queue.addAll(scannedUrl.getUrls());
                 }
               });
@@ -58,10 +56,9 @@ public class SearchService {
     threadPoolExecutor.shutdown();
   }
 
-  private ScannedUrl parseUrl(final String url, final String text,
-      final SearchParams searchParams) {
+  ScannedUrl parseUrl(final String url, final SearchParams searchParams) {
     try {
-      final Document doc = Jsoup.connect(url).timeout(TIME_OUT_SECONDS * 1000).get();
+      final Document doc = getDocument(url);
 
       final List<String> urls;
       synchronized (MONITOR) {
@@ -73,7 +70,7 @@ public class SearchService {
             .peek(this::pushToScan).collect(Collectors.toList());
       }
 
-      final boolean exists = doc.body().text().contains(text);
+      final boolean exists = doc.body().text().contains(searchParams.getText());
 
       final ScannedUrl scannedUrl = new ScannedUrl(url, urls, exists);
       pushToScanned(scannedUrl);
@@ -85,6 +82,10 @@ public class SearchService {
     }
   }
 
+  Document getDocument(String url) throws IOException {
+    return Jsoup.connect(url).timeout(TIME_OUT_SECONDS * 1000).get();
+  }
+
   private void pushToScan(final String url) {
     simpMessagingTemplate.convertAndSend(URL_TO_SCAN_TOPIC, url);
   }
@@ -94,7 +95,7 @@ public class SearchService {
   }
 
   private String getHrefValue(final Element element) {
-    return element.attr("href"); // todo url filter\fixer ?
+    return element.attr("href");
   }
 
   private boolean isNewUrl(final String href) {
